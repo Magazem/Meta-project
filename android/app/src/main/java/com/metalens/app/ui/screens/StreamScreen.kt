@@ -1,6 +1,7 @@
 package com.metalens.app.ui.screens
 
 import androidx.activity.ComponentActivity
+import com.metalens.app.BuildConfig
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -37,6 +51,7 @@ import com.meta.wearable.dat.core.types.PermissionStatus
 import com.metalens.app.R
 import com.metalens.app.settings.AppSettings
 import com.metalens.app.stream.StreamViewModel
+import com.metalens.app.stream.PublisherBackend
 import com.metalens.app.wearables.LocalWearablesPermissionRequester
 import com.metalens.app.wearables.WearablesViewModel
 
@@ -62,6 +77,12 @@ fun StreamScreen(
     val uiState by streamViewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
+        // In debug builds we skip the wearable permission flow so the screen remains open
+        // and the publisher UI can be tested on emulators without connected glasses.
+        if (BuildConfig.DEBUG) {
+            return@LaunchedEffect
+        }
+
         // Ensure wearable camera permission before starting stream
         val permission = Permission.CAMERA
         val statusResult = Wearables.checkPermissionStatus(permission)
@@ -141,6 +162,78 @@ fun StreamScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
+        }
+
+        // Publisher selection UI (top-end)
+        Column(
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.4f), shape = MaterialTheme.shapes.medium)
+                    .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Dropdown
+            var expanded by remember { mutableStateOf(false) }
+            val options = PublisherBackend.values()
+            val selected = uiState.selectedPublisher
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = selected.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.weight(1f).clickable { expanded = true },
+                    trailingIcon = {
+                        val icon = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown
+                        Icon(icon, contentDescription = null)
+                    },
+                )
+
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.displayName) },
+                            onClick = {
+                                streamViewModel.setPublisherBackend(option)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Publisher description
+            Text(
+                text = selected.description,
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            // Target URL input
+            val urlValue = rememberSaveable(uiState.publishTargetUrl) { mutableStateOf(uiState.publishTargetUrl) }
+            OutlinedTextField(
+                value = urlValue.value,
+                onValueChange = {
+                    urlValue.value = it
+                    streamViewModel.setPublishTargetUrl(it)
+                },
+                placeholder = { Text("rtmp://your.ingest/url/STREAM_KEY") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            // Start / Stop button
+            if (!uiState.isPublishing) {
+                Button(onClick = { streamViewModel.startPublishing(uiState.publishTargetUrl) }) {
+                    Text("Start Publishing")
+                }
+            } else {
+                Button(onClick = { streamViewModel.stopPublishing() }) {
+                    Text("Stop Publishing")
+                }
             }
         }
 

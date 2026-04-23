@@ -70,57 +70,105 @@ class ConversationSession(
                 val systemInstructions = AppSettings.getConversationSystemInstructions(appContext).trim()
 
                 val client =
-                    OpenAIRealtimeClient(
-                        apiKey = apiKey,
-                        model = model.ifBlank { OpenAIRealtimeClient.DEFAULT_MODEL },
-                        instructions = systemInstructions,
-                        onConnected = {
-                            ConversationRuntime.update { it.copy(status = ConversationStatus.Listening) }
-                        },
-                        onDisconnected = { reason ->
-                            val s = ConversationRuntime.uiState.value.status
-                            if (s != ConversationStatus.Idle) {
-                                ConversationRuntime.update {
-                                    it.copy(
-                                        status = ConversationStatus.Idle,
-                                        recentError = "Disconnected: $reason",
-                                    )
+                    if (com.metalens.app.BuildConfig.DEBUG) {
+                        MockOpenAIRealtimeClient(
+                            apiKey = apiKey,
+                            model = model.ifBlank { OpenAIRealtimeClient.DEFAULT_MODEL },
+                            instructions = systemInstructions,
+                            onConnected = {
+                                ConversationRuntime.update { it.copy(status = ConversationStatus.Listening) }
+                            },
+                            onDisconnected = { reason ->
+                                val s = ConversationRuntime.uiState.value.status
+                                if (s != ConversationStatus.Idle) {
+                                    ConversationRuntime.update {
+                                        it.copy(
+                                            status = ConversationStatus.Idle,
+                                            recentError = "Disconnected: $reason",
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        onError = { message ->
-                            ConversationRuntime.update {
-                                it.copy(status = ConversationStatus.Error, recentError = message)
-                            }
-                        },
-                        onAudioDelta = { pcm16 ->
-                            audioIo.playPcm16Mono(pcm16)
-                            assistantAudioActiveUntilMs = android.os.SystemClock.elapsedRealtime() + 1000L
-                            bumpAssistantSpeaking()
-                        },
-                        onAssistantTextDelta = { delta -> appendAssistantDelta(delta) },
-                        onUserUtteranceStarted = { itemId -> ensureUserMessagePlaceholder(itemId) },
-                        onUserUtteranceStopped = { itemId, durationMs ->
-                            // If it was just noise/very brief, don't show a phantom message.
-                            if (durationMs < 250) {
-                                pendingUserPlaceholderJobs.remove(itemId)?.cancel()
-                                removeUserMessagePlaceholder(itemId)
-                            } else {
-                                // Ensure placeholder exists (in case transcription is slow).
-                                ensureUserMessagePlaceholderImmediate(itemId)
-                            }
-                        },
-                        onUserTranscript = { itemId, transcript -> setUserMessageTranscript(itemId, transcript) },
-                        onAssistantResponseStarted = { _ -> /* don't create empty AI messages */ },
-                        onAssistantResponseDone = { currentAssistantMessageId = null },
-                        onInputSpeechState = { isSpeaking ->
-                            if (isSpeaking) {
-                                // Stop any buffered assistant audio immediately when the user interrupts.
-                                audioIo.interruptPlayback()
-                            }
-                            ConversationRuntime.update { it.copy(isUserSpeaking = isSpeaking) }
-                        },
-                    )
+                            },
+                            onError = { message ->
+                                ConversationRuntime.update {
+                                    it.copy(status = ConversationStatus.Error, recentError = message)
+                                }
+                            },
+                            onAudioDelta = { pcm16 ->
+                                audioIo.playPcm16Mono(pcm16)
+                                assistantAudioActiveUntilMs = android.os.SystemClock.elapsedRealtime() + 1000L
+                                bumpAssistantSpeaking()
+                            },
+                            onAssistantTextDelta = { delta -> appendAssistantDelta(delta) },
+                            onUserUtteranceStarted = { itemId -> ensureUserMessagePlaceholder(itemId) },
+                            onUserUtteranceStopped = { itemId, durationMs ->
+                                if (durationMs < 250) {
+                                    pendingUserPlaceholderJobs.remove(itemId)?.cancel()
+                                    removeUserMessagePlaceholder(itemId)
+                                } else {
+                                    ensureUserMessagePlaceholderImmediate(itemId)
+                                }
+                            },
+                            onUserTranscript = { itemId, transcript -> setUserMessageTranscript(itemId, transcript) },
+                            onAssistantResponseStarted = { _ -> /* don't create empty AI messages */ },
+                            onAssistantResponseDone = { currentAssistantMessageId = null },
+                            onInputSpeechState = { isSpeaking ->
+                                if (isSpeaking) {
+                                    audioIo.interruptPlayback()
+                                }
+                                ConversationRuntime.update { it.copy(isUserSpeaking = isSpeaking) }
+                            },
+                        )
+                    } else {
+                        OpenAIRealtimeClient(
+                            apiKey = apiKey,
+                            model = model.ifBlank { OpenAIRealtimeClient.DEFAULT_MODEL },
+                            instructions = systemInstructions,
+                            onConnected = {
+                                ConversationRuntime.update { it.copy(status = ConversationStatus.Listening) }
+                            },
+                            onDisconnected = { reason ->
+                                val s = ConversationRuntime.uiState.value.status
+                                if (s != ConversationStatus.Idle) {
+                                    ConversationRuntime.update {
+                                        it.copy(
+                                            status = ConversationStatus.Idle,
+                                            recentError = "Disconnected: $reason",
+                                        )
+                                    }
+                                }
+                            },
+                            onError = { message ->
+                                ConversationRuntime.update {
+                                    it.copy(status = ConversationStatus.Error, recentError = message)
+                                }
+                            },
+                            onAudioDelta = { pcm16 ->
+                                audioIo.playPcm16Mono(pcm16)
+                                assistantAudioActiveUntilMs = android.os.SystemClock.elapsedRealtime() + 1000L
+                                bumpAssistantSpeaking()
+                            },
+                            onAssistantTextDelta = { delta -> appendAssistantDelta(delta) },
+                            onUserUtteranceStarted = { itemId -> ensureUserMessagePlaceholder(itemId) },
+                            onUserUtteranceStopped = { itemId, durationMs ->
+                                if (durationMs < 250) {
+                                    pendingUserPlaceholderJobs.remove(itemId)?.cancel()
+                                    removeUserMessagePlaceholder(itemId)
+                                } else {
+                                    ensureUserMessagePlaceholderImmediate(itemId)
+                                }
+                            },
+                            onUserTranscript = { itemId, transcript -> setUserMessageTranscript(itemId, transcript) },
+                            onAssistantResponseStarted = { _ -> /* don't create empty AI messages */ },
+                            onAssistantResponseDone = { currentAssistantMessageId = null },
+                            onInputSpeechState = { isSpeaking ->
+                                if (isSpeaking) {
+                                    audioIo.interruptPlayback()
+                                }
+                                ConversationRuntime.update { it.copy(isUserSpeaking = isSpeaking) }
+                            },
+                        )
+                    }
 
                 realtimeClient = client
                 client.connect()

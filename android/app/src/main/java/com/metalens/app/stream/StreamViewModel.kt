@@ -19,6 +19,9 @@ import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.metalens.app.settings.AppSettings
 import com.metalens.app.wearables.WearablesViewModel
+import com.metalens.app.stream.output.RtmpPublisher
+import com.metalens.app.stream.output.StreamOutput
+import com.metalens.app.stream.PublisherBackend
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +50,8 @@ class StreamViewModel(
     private var videoJob: Job? = null
     private var stateJob: Job? = null
     private var lastSessionState: StreamSessionState? = null
+    // Pluggable output sink for publishing (RTMP/etc.)
+    private var streamOutput: StreamOutput? = null
 
     fun startStream() {
         Log.d(TAG, "startStream()")
@@ -111,6 +116,7 @@ class StreamViewModel(
 
     fun stopStream() {
         Log.d(TAG, "stopStream()")
+        stopPublishing()
         videoJob?.cancel()
         videoJob = null
         stateJob?.cancel()
@@ -118,6 +124,49 @@ class StreamViewModel(
         streamSession?.close()
         streamSession = null
         _uiState.update { StreamUiState() }
+    }
+
+    /**
+     * Start an in-app publisher. This will create a default `RtmpPublisher` if none was set.
+     * `targetUrl` should be an RTMP(S) ingest URL including stream key.
+     */
+    fun startPublishing(targetUrl: String) {
+        // Create the appropriate publisher based on the selected backend
+        val backend = _uiState.value.selectedPublisher
+        if (streamOutput == null) {
+            streamOutput = when (backend) {
+                PublisherBackend.PLACEHOLDER -> RtmpPublisher(getApplication())
+                PublisherBackend.RTMP -> RtmpPublisher(getApplication())
+                PublisherBackend.FFMPEG -> RtmpPublisher(getApplication()) // placeholder until ffmpeg is integrated
+                PublisherBackend.CLOUD -> RtmpPublisher(getApplication()) // placeholder for cloud relay
+            }
+        }
+
+        try {
+            streamOutput?.start(targetUrl)
+            _uiState.update { it.copy(publishTargetUrl = targetUrl, isPublishing = true) }
+        } catch (t: Throwable) {
+            Log.e(TAG, "startPublishing failed", t)
+            _uiState.update { it.copy(recentError = t.message ?: "Failed to start publisher") }
+        }
+    }
+
+    fun stopPublishing() {
+        try {
+            streamOutput?.stop()
+            _uiState.update { it.copy(isPublishing = false) }
+        } catch (t: Throwable) {
+            Log.e(TAG, "stopPublishing failed", t)
+        }
+    }
+
+    fun setPublisherBackend(backend: PublisherBackend) {
+        _uiState.update { it.copy(selectedPublisher = backend) }
+        // Recreate streamOutput only when starting publishing to avoid tearing down mid-stream.
+    }
+
+    fun setPublishTargetUrl(url: String) {
+        _uiState.update { it.copy(publishTargetUrl = url) }
     }
 
     private fun handleVideoFrame(videoFrame: VideoFrame) {
@@ -131,6 +180,14 @@ class StreamViewModel(
                         decodeToBitmap(videoFrame)
                     }
                 _uiState.update { it.copy(videoFrame = bitmap, frameCount = it.frameCount + 1) }
+                // Forward decoded frames to the configured publisher (if running). Use a best-effort approach.
+                try {
+                    if (bitmap != null && streamOutput?.isRunning == true) {
+                        streamOutput?.sendFrame(bitmap)
+                    }
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Failed to forward frame to publisher", t)
+                }
             }
         } catch (t: Throwable) {
             Log.e(TAG, "handleVideoFrame failed", t)

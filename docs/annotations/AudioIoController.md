@@ -12,3 +12,9 @@ Key points
 Notes / Next steps
 - Verify proper handling of audio focus and interruptions (incoming calls, other apps).
 - Consider offloading heavy resampling to a background thread or native code for lower latency.
+
+Change log
+- **2026-04-23:** Added runtime `RECORD_AUDIO` permission check in `createAndStartAudioRecord()` to address Android Lint `MissingPermission` and to fail-fast with a clear SecurityException when the app hasn't requested audio permission at runtime. See [android/app/src/main/java/com/metalens/app/conversation/AudioIoController.kt](android/app/src/main/java/com/metalens/app/conversation/AudioIoController.kt#L1-L300).
+
+Recommendation
+- Ensure the app requests `RECORD_AUDIO` at runtime (for example, add `RECORD_AUDIO` to the permission flow in `MainActivity.kt` or the Wearables permission contract) before calling `startMicCapture()`. See [android/app/src/main/java/com/metalens/app/MainActivity.kt](android/app/src/main/java/com/metalens/app/MainActivity.kt#L1-L120).

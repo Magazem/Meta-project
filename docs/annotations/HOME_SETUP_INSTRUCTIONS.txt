@@ -1,0 +1,45 @@
+Home PC setup: retrieve and build this repo
+
+1) Clone the repo
+- If you use SSH:
+  git clone git@github.com:YOUR_USER/meta-lens-ai.git
+- Or HTTPS:
+  git clone https://github.com/YOUR_USER/meta-lens-ai.git
+
+2) Open in VS Code
+  cd meta-lens-ai
+  code .
+
+3) Android SDK / build tools
+- Install Android Studio or the command-line SDK; ensure `adb` is installed.
+- On Windows, add platform-tools to your PATH or use the absolute path:
+  C:\Users\<you>\AppData\Local\Android\Sdk\platform-tools\adb.exe
+
+4) Build the debug APK (recommended: use Git Bash or WSL because this repo's Gradle wrapper is a Unix shell script)
+  # using Git Bash or WSL
+  cd android
+  ./gradlew :app:assembleDebug
+
+  # if you prefer PowerShell and have Gradle installed system-wide
+  gradle :app:assembleDebug
+
+5) Install the APK (PowerShell example)
+  "C:\Users\visiteur\AppData\Local\Android\Sdk\platform-tools\adb.exe" install -r android/app/build/outputs/apk/debug/app-debug.apk
+  # Launch the app
+  "C:\Users\visiteur\AppData\Local\Android\Sdk\platform-tools\adb.exe" shell monkey -p com.metalens.app -c android.intent.category.LAUNCHER 1
+
+6) Developer tips
+- The Stream UI is reachable from Home → Start Streaming (this checkpoint forces the button visible on emulators).
+- On Windows, prefer Git Bash to run `./gradlew` since `android/gradlew` is a shell script (no .bat wrapper present in this repo).
+- Remove or relocate any API keys from source before pushing: keep keys in local `gradle.properties` or CI secrets.
+
+7) Restore assistant context
+- Open `docs/annotations/ConversationSession.md` and copy the `Session Summary` section into your next chat message with the assistant so it resumes from this checkpoint.
+
+8) If you want this machine to host a remote (one-time)
+- Create a GitHub repo and push:
+  gh repo create YOUR_USER/meta-lens-ai --private --source=. --remote=origin --push
+  # or on GitHub website create a repo and then
+  git remote add origin git@github.com:YOUR_USER/meta-lens-ai.git
+  git push -u origin HEAD
+

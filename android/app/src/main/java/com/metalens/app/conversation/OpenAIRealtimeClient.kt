@@ -19,22 +19,22 @@ import java.util.regex.Pattern
  * - Client audio in: `input_audio_buffer.append` with base64 PCM16
  * - Server audio out: `response.audio.delta` with base64 PCM16
  */
-class OpenAIRealtimeClient(
+open class OpenAIRealtimeClient(
     private val apiKey: String,
     private val model: String = DEFAULT_MODEL,
     private val voice: String = DEFAULT_VOICE,
     private val instructions: String? = null,
-    private val onConnected: () -> Unit,
-    private val onDisconnected: (reason: String) -> Unit,
-    private val onError: (message: String) -> Unit,
-    private val onAudioDelta: (pcm16: ByteArray) -> Unit,
-    private val onAssistantTextDelta: (delta: String) -> Unit,
-    private val onUserUtteranceStarted: (itemId: String) -> Unit,
-    private val onUserUtteranceStopped: (itemId: String, durationMs: Long) -> Unit,
-    private val onUserTranscript: (itemId: String, transcript: String) -> Unit,
-    private val onAssistantResponseStarted: (responseId: String?) -> Unit,
-    private val onAssistantResponseDone: () -> Unit,
-    private val onInputSpeechState: (isSpeeching: Boolean) -> Unit,
+    protected val onConnected: () -> Unit,
+    protected val onDisconnected: (reason: String) -> Unit,
+    protected val onError: (message: String) -> Unit,
+    protected val onAudioDelta: (pcm16: ByteArray) -> Unit,
+    protected val onAssistantTextDelta: (delta: String) -> Unit,
+    protected val onUserUtteranceStarted: (itemId: String) -> Unit,
+    protected val onUserUtteranceStopped: (itemId: String, durationMs: Long) -> Unit,
+    protected val onUserTranscript: (itemId: String, transcript: String) -> Unit,
+    protected val onAssistantResponseStarted: (responseId: String?) -> Unit,
+    protected val onAssistantResponseDone: () -> Unit,
+    protected val onInputSpeechState: (isSpeeching: Boolean) -> Unit,
 ) {
     companion object {
         private const val TAG = "OpenAIRealtimeClient"
@@ -57,7 +57,7 @@ class OpenAIRealtimeClient(
     private val speechStartByItemId = linkedMapOf<String, Long>()
     private val transcriptDeltaSeenByResponseId = mutableSetOf<String>()
 
-    fun connect() {
+    open fun connect() {
         if (apiKey.isBlank()) {
             onError("Missing OpenAI API key (set it in Settings or via OPENAI_API_KEY build config)")
             return
@@ -122,7 +122,7 @@ class OpenAIRealtimeClient(
             )
     }
 
-    fun close() {
+    open fun close() {
         socket?.close(1000, "client close")
         socket = null
         activeResponseId = null
@@ -132,7 +132,7 @@ class OpenAIRealtimeClient(
         transcriptDeltaSeenByResponseId.clear()
     }
 
-    fun sendPcm16Audio(pcm16: ByteArray) {
+    open fun sendPcm16Audio(pcm16: ByteArray) {
         val ws = socket ?: return
         if (pcm16.isEmpty()) return
         val payload =
@@ -143,7 +143,7 @@ class OpenAIRealtimeClient(
         ws.send(payload)
     }
 
-    fun sendUserText(text: String) {
+    open fun sendUserText(text: String) {
         val ws = socket ?: return
         if (text.isBlank()) return
 
@@ -187,7 +187,7 @@ class OpenAIRealtimeClient(
      *
      * Safe to call even if nothing is active; harmless server errors are ignored in `error` handling.
      */
-    fun cancelActiveResponse() {
+    open fun cancelActiveResponse() {
         sendResponseCancel()
     }
 

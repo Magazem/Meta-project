@@ -3,8 +3,7 @@ package com.metalens.app.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
+import com.metalens.app.MainActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -69,18 +68,9 @@ fun ConversationScreen(
         ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
-    val permissionLauncher =
-        rememberLauncherForActivityResult(RequestPermission()) { granted ->
-            if (granted) {
-                viewModel.start()
-            }
-        }
-
     LaunchedEffect(Unit) {
         if (hasMicPermission) {
             viewModel.start()
-        } else {
-            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -199,7 +189,7 @@ fun ConversationScreen(
                         if (hasMicPermission) {
                             viewModel.start()
                         } else {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            (activity as? MainActivity)?.requestRecordAudio { viewModel.start() }
                         }
                     }
                 },

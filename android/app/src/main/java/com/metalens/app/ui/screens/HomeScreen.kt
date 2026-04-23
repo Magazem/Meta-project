@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.metalens.app.R
+import com.metalens.app.BuildConfig
 import com.metalens.app.ui.components.FeatureActionCard
 
 @Composable
@@ -63,7 +64,9 @@ fun HomeScreen(
             title = stringResource(R.string.start_conversation),
             subtitle = stringResource(R.string.start_conversation_subtitle),
             icon = Icons.Filled.ChatBubble,
-            enabled = isGlassesConnected,
+            // Allow starting conversation in debug builds even if no glasses are connected,
+            // so the mic/voice flow can be tested on an emulator.
+            enabled = isGlassesConnected || BuildConfig.DEBUG,
             onClick = onStartConversation,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -74,7 +77,8 @@ fun HomeScreen(
             title = stringResource(R.string.start_streaming),
             subtitle = stringResource(R.string.start_streaming_subtitle),
             icon = Icons.Filled.Videocam,
-            enabled = isGlassesConnected,
+            // Force-enable Start Streaming so emulator users can access Stream UI.
+            enabled = true,
             onClick = onStartStreaming,
             modifier = Modifier.fillMaxWidth(),
         )

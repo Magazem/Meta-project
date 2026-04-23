@@ -4,6 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.Manifest.permission.RECORD_AUDIO
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import android.annotation.SuppressLint
+import android.util.Log
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -36,6 +41,7 @@ class AudioIoController(
     private val appContext: Context,
     private val sampleRateHz: Int = 24_000,
 ) {
+    private val TAG = "AudioIoController"
     private val audioManager: AudioManager =
         appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -47,7 +53,8 @@ class AudioIoController(
 
     suspend fun startRoutingToBluetoothSco() {
         if (!audioManager.isBluetoothScoAvailableOffCall) {
-            throw IllegalStateException("Bluetooth SCO not available on this device")
+            Log.w(TAG, "Bluetooth SCO not available on this device; falling back to built-in mic")
+            return
         }
 
         if (previousMode == null) {
@@ -74,7 +81,11 @@ class AudioIoController(
                 delay(250L * (attempt + 1))
             }
         }
-        throw IllegalStateException("Failed to start Bluetooth SCO", lastError)
+        // If we couldn't start SCO, log and fall back to the device mic instead of
+        // throwing an exception so the conversation flow can continue (useful on
+        // emulators and devices without the glasses' SCO support).
+        Log.w(TAG, "Failed to start Bluetooth SCO; falling back to built-in mic", lastError)
+        return
     }
 
     private suspend fun startScoAndWaitConnected(timeoutMs: Long) {
@@ -234,6 +245,7 @@ class AudioIoController(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun createAndStartAudioRecord(): AudioRecord {
         val minBuffer =
             AudioRecord.getMinBufferSize(
@@ -242,22 +254,36 @@ class AudioIoController(
                 AudioFormat.ENCODING_PCM_16BIT,
             )
         val bufferSize = maxOf(minBuffer, sampleRateHz) // ~1s safety
+        // Ensure runtime RECORD_AUDIO permission is granted before constructing AudioRecord.
+        if (ContextCompat.checkSelfPermission(appContext, RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            val record =
+                AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRateHz)
+                            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                            .build(),
+                    )
+                    .setBufferSizeInBytes(bufferSize)
+                    .build()
 
-        val record =
-            AudioRecord.Builder()
-                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRateHz)
-                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                        .build(),
-                )
-                .setBufferSizeInBytes(bufferSize)
-                .build()
+            try {
+                record.startRecording()
+            } catch (se: SecurityException) {
+                try {
+                    record.release()
+                } catch (_: Throwable) {
+                    // ignore
+                }
+                throw SecurityException("Failed to start recording, permission denied", se)
+            }
 
-        record.startRecording()
-        return record
+            return record
+        } else {
+            throw SecurityException("Missing RECORD_AUDIO permission. Request runtime permission before starting microphone capture.")
+        }
     }
 
     fun stop() {
