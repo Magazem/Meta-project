@@ -19,9 +19,11 @@ import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.metalens.app.settings.AppSettings
 import com.metalens.app.wearables.WearablesViewModel
+import com.metalens.app.stream.output.H264FilePublisher
 import com.metalens.app.stream.output.RtmpPublisher
 import com.metalens.app.stream.output.StreamOutput
 import com.metalens.app.stream.PublisherBackend
+import java.io.File
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
@@ -136,15 +138,28 @@ class StreamViewModel(
         if (streamOutput == null) {
             streamOutput = when (backend) {
                 PublisherBackend.PLACEHOLDER -> RtmpPublisher(getApplication())
+                PublisherBackend.LOCAL_FILE -> H264FilePublisher(getApplication())
                 PublisherBackend.RTMP -> RtmpPublisher(getApplication())
                 PublisherBackend.FFMPEG -> RtmpPublisher(getApplication()) // placeholder until ffmpeg is integrated
                 PublisherBackend.CLOUD -> RtmpPublisher(getApplication()) // placeholder for cloud relay
             }
         }
 
+        val effectiveTargetUrl = if (backend == PublisherBackend.LOCAL_FILE) {
+            val requested = targetUrl.ifBlank { "metalens_stream.mp4" }
+            val requestedFile = File(requested)
+            if (requestedFile.isAbsolute) {
+                requestedFile.absolutePath
+            } else {
+                File(getApplication<Application>().cacheDir, requested).absolutePath
+            }
+        } else {
+            targetUrl
+        }
+
         try {
-            streamOutput?.start(targetUrl)
-            _uiState.update { it.copy(publishTargetUrl = targetUrl, isPublishing = true) }
+            streamOutput?.start(effectiveTargetUrl)
+            _uiState.update { it.copy(publishTargetUrl = effectiveTargetUrl, isPublishing = true) }
         } catch (t: Throwable) {
             Log.e(TAG, "startPublishing failed", t)
             _uiState.update { it.copy(recentError = t.message ?: "Failed to start publisher") }

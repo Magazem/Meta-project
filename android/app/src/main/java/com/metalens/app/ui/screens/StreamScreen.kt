@@ -220,10 +220,23 @@ fun StreamScreen(
                     urlValue.value = it
                     streamViewModel.setPublishTargetUrl(it)
                 },
-                placeholder = { Text("rtmp://your.ingest/url/STREAM_KEY") },
+                placeholder = {
+                    Text(
+                        if (selected == PublisherBackend.LOCAL_FILE) "metalens_stream.mp4"
+                        else "rtmp://your.ingest/url/STREAM_KEY"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+
+            if (selected == PublisherBackend.LOCAL_FILE) {
+                Text(
+                    text = "Recorded file will be written to app cache when publishing starts.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
             // Start / Stop button
             if (!uiState.isPublishing) {

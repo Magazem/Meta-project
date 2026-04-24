@@ -5,6 +5,10 @@ enum class PublisherBackend(val displayName: String, val description: String) {
         "Placeholder (Local)",
         "Writes frames to local cache for development and testing (no network).",
     ),
+    LOCAL_FILE(
+        "Local MP4 (H.264)",
+        "Encode frames to a local MP4 file using MediaCodec. A first real publisher backend for testing.",
+    ),
     RTMP(
         "RTMP (MediaCodec → RTMP)",
         "Hardware-accelerated H.264/AAC encoding and RTMP push; compact and efficient for mobile.",
